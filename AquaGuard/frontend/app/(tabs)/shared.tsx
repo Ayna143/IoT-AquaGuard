@@ -41,8 +41,7 @@ export const T = {
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
 export const TANKS = [
   { id: '1', name: 'Fish Tank 1', type: '20L · Freshwater', sensor: '#001', ph: 7.1, temp: 20, clarity: 90, status: 'GOOD' },
-  { id: '2', name: 'Fish Tank 2', type: '20L · Freshwater', sensor: '#001', ph: 7.1, temp: 20, clarity: 90, status: 'CAUTION' },
-  { id: '3', name: 'Fish Tank 3', type: '20L · Freshwater', sensor: '#001', ph: 7.1, temp: 20, clarity: 90, status: 'CRITICAL' },
+  
 ];
 
 export const ACTIVITY = [
@@ -261,3 +260,7 @@ export const sharedStyles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export default function SharedRoute() {
+  return null;
+}

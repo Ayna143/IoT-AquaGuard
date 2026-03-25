@@ -2,41 +2,69 @@
 import React, { useState, useEffect } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// Firebase Imports
 import { ref, onValue } from 'firebase/database';
 import { database } from '../../firebaseConfig'; 
 
-// Shared Components
 import { Card, ScreenHeader, StatusBadge, T, TANKS } from './shared';
 import ViewTankScreen from './view-tank';
 
 export default function ActivityTab() {
   const [activeTank, setActiveTank] = useState<any>(null);
   const [liveLogs, setLiveLogs] = useState<any[]>([]);
+  
+  // ADDED: Track the live tanks here too so tapping a log opens the LIVE tank
+  const [liveTanks, setLiveTanks] = useState(TANKS);
 
   useEffect(() => {
-    // Listen to the 'activity_logs' folder we are writing to from the dashboard
+    // 1. Listen to Activity Logs
     const logsRef = ref(database, 'activity_logs/');
-
-    const unsubscribe = onValue(logsRef, (snapshot) => {
+    const unsubLogs = onValue(logsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Convert the Firebase object into an array and reverse it so newest is on top
         const logsArray = Object.keys(data).map(key => ({
           ...data[key],
           firebaseKey: key 
         })).reverse();
-        
         setLiveLogs(logsArray);
       } else {
-        setLiveLogs([]); // Clear logs if database is empty
+        setLiveLogs([]); 
       }
     });
 
-    return () => unsubscribe();
+    // 2. Listen to Live Tank Data (Syncs completely with Dashboard)
+    const tankRef = ref(database, 'aquarium/');
+    const unsubTanks = onValue(tankRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        let currentStatus = 'GOOD';
+        if (data.ph > 8.0 || data.ph < 6.5 || data.temp > 28.0 || data.temp < 20.0) {
+          currentStatus = 'CRITICAL';
+        } else if (data.ph >= 7.6 || data.ph <= 6.7) {
+          currentStatus = 'CAUTION';
+        }
+
+        setLiveTanks(currentTanks => 
+          currentTanks.map(tank => 
+            tank.name === "Fish Tank 1" 
+              ? { 
+                  ...tank, 
+                  ph: data.ph ?? tank.ph, 
+                  temp: data.temp ?? tank.temp, 
+                  clarity: data.tds ? Math.round(Math.max(0, 100 - (data.tds / 10))) : tank.clarity,
+                  status: currentStatus 
+                }
+              : tank
+          )
+        );
+      }
+    });
+
+    return () => {
+      unsubLogs();
+      unsubTanks();
+    };
   }, []);
 
-  // Navigation Logic
   if (activeTank) {
     return <ViewTankScreen tank={activeTank} onBack={() => setActiveTank(null)} />;
   }
@@ -56,8 +84,9 @@ export default function ActivityTab() {
           keyExtractor={item => item.firebaseKey || item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => {
-            // Bulletproof search: ignores case and extra spaces
-            const matchedTank = TANKS.find(t => 
+            
+            // FIXED: Now searches the LIVE tanks instead of the static mock data!
+            const matchedTank = liveTanks.find(t => 
               t.name.toLowerCase().trim() === item.tank.toLowerCase().trim()
             );
 

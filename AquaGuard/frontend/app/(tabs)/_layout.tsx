@@ -1,29 +1,35 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 
+// 1. Import Ionicons which works perfectly on both Android and iOS!
+import { Ionicons } from '@expo/vector-icons'; 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 
 const BLUE = '#1A6BCC';
-const INACTIVE = '#A0AABB';
+const GRAY = '#9CA3AF'; 
 const NAV_BG = '#FFFFFF';
 const BORDER = '#E4E8F0';
 
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="dashboard" 
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarActiveTintColor: BLUE,
-        tabBarInactiveTintColor: INACTIVE,
+        tabBarInactiveTintColor: GRAY,
         tabBarStyle: {
           backgroundColor: NAV_BG,
           borderTopColor: BORDER,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 82 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          
+          height: Platform.OS === 'ios' ? 88 : 70, 
+          
+          paddingBottom: Platform.OS === 'ios' ? 28 : 14, 
+          
           paddingTop: 8,
           elevation: 0,
           shadowOpacity: 0,
@@ -35,39 +41,42 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="house.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          title: 'Activity',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="clock.fill" color={color} />
-          ),
-        }}
-      />
+      {/* --- HIDDEN ROUTES --- */}
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="shared" options={{ href: null }} />
+      <Tabs.Screen name="view-tank" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} /> 
+
+      {/* --- VISIBLE TABS --- */}
       <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Tanks',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="chart.bar.fill" color={color} />
+          // 2. Updated to use Ionicons (bar-chart / bar-chart-outline)
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons size={24} name={focused ? "bar-chart" : "bar-chart-outline"} color={color} />
           ),
         }}
       />
+      
+      <Tabs.Screen
+        name="activity"
+        options={{
+          title: 'Activity',
+          // Updated to use Ionicons (time / time-outline)
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons size={24} name={focused ? "time" : "time-outline"} color={color} />
+          ),
+        }}
+      />
+      
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="gearshape.fill" color={color} />
+          // Updated to use Ionicons (settings / settings-outline)
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons size={24} name={focused ? "settings" : "settings-outline"} color={color} />
           ),
         }}
       />

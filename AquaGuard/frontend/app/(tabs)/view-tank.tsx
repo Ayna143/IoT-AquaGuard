@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ACTIVITY, Card, GhostButton, PrimaryButton, ScreenHeader, sharedStyles, StatusBadge, T } from './shared';
+import { Card, GhostButton, PrimaryButton, ScreenHeader, sharedStyles, StatusBadge, T } from './shared';
 
 const METRICS = [
   { key: 'ph', label: 'PH Level', getValue: (t: any) => t.ph, getUnit: () => '', range: 'Ideal: 6.5 – 7.5' },

@@ -2,15 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// Firebase Imports
 import { ref, onValue, push, set } from 'firebase/database';
 import { database } from '../../firebaseConfig'; 
 
-// Shared Components & Mock Data
 import { Card, ScreenHeader, StatusBadge, T, TANKS } from './shared';
 import ViewTankScreen from './view-tank';
 
-// Helper component for the small stat displays
 function StatPill({ label, value }: { label: string; value: string | number }) {
   return (
     <View style={styles.pill}>
@@ -24,45 +21,45 @@ export default function DashboardTab() {
   const [activeTank, setActiveTank] = useState<any>(null);
   const [liveTanks, setLiveTanks] = useState(TANKS);
   
-  // This cooldown timer prevents the app from spamming the database with alerts
   const lastAlarmTime = useRef<number>(0); 
 
   useEffect(() => {
-    // Listen to the live aquarium data from the ESP32
     const tankRef = ref(database, 'aquarium/');
 
     const unsubscribe = onValue(tankRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         
-        // --- 1. DETERMINE TANK HEALTH ---
         let currentStatus = 'GOOD';
+        let alertMessage = '';
         
+        // SYNCED ALARM LOGIC (Checks pH and Temperature)
         if (data.ph > 8.0 || data.ph < 6.5) {
           currentStatus = 'CRITICAL';
-          
-          // --- 2. AUTOMATIC LOGGING ---
-          const now = Date.now();
-          // Check if 5 minutes (300,000 ms) have passed since the last logged alert
-          if (now - lastAlarmTime.current > 300000) {
-            lastAlarmTime.current = now; 
-
-            // Create a new entry in the activity_logs folder
-            const newLogRef = push(ref(database, 'activity_logs/'));
-            
-            set(newLogRef, {
-              id: now.toString(),
-              tank: "Fish Tank 1",
-              event: `Critical pH Alert: ${data.ph}`,
-              time: new Date().toLocaleString(),
-              status: "CRITICAL"
-            });
-          }
+          alertMessage = `Critical pH Level: ${data.ph.toFixed(1)}`;
+        } else if (data.temp > 28.0 || data.temp < 20.0) {
+          currentStatus = 'CRITICAL';
+          alertMessage = `Critical Temperature: ${data.temp.toFixed(1)}°C`;
         } else if (data.ph >= 7.6 || data.ph <= 6.7) {
           currentStatus = 'CAUTION';
         }
 
-        // --- 3. UPDATE THE DASHBOARD UI ---
+        // AUTOMATIC LOGGING TO ACTIVITY SCREEN
+        if (currentStatus === 'CRITICAL' && alertMessage !== '') {
+          const now = Date.now();
+          if (now - lastAlarmTime.current > 300000) { // 5 min cooldown
+            lastAlarmTime.current = now; 
+            const newLogRef = push(ref(database, 'activity_logs/'));
+            set(newLogRef, {
+              id: now.toString(),
+              tank: "Fish Tank 1",
+              event: alertMessage,
+              time: new Date().toLocaleString(),
+              status: "CRITICAL"
+            });
+          }
+        }
+
         setLiveTanks(currentTanks => 
           currentTanks.map(tank => 
             tank.name === "Fish Tank 1" 
@@ -70,7 +67,6 @@ export default function DashboardTab() {
                   ...tank, 
                   ph: data.ph ?? tank.ph, 
                   temp: data.temp ?? tank.temp, 
-                  // Use Math.round() instead of .toFixed(0) so it stays a Number!
                   clarity: data.tds ? Math.round(Math.max(0, 100 - (data.tds / 10))) : tank.clarity,
                   status: currentStatus 
                 }
@@ -83,7 +79,6 @@ export default function DashboardTab() {
     return () => unsubscribe();
   }, []);
 
-  // Navigation Logic
   if (activeTank) {
     return <ViewTankScreen tank={activeTank} onBack={() => setActiveTank(null)} />;
   }
@@ -117,20 +112,11 @@ export default function DashboardTab() {
               </View>
 
               <View style={styles.statsRow}>
-                <StatPill 
-                  label="PH" 
-                  value={typeof tank.ph === 'number' ? tank.ph.toFixed(1) : tank.ph} 
-                />
+                <StatPill label="PH" value={typeof tank.ph === 'number' ? tank.ph.toFixed(1) : tank.ph} />
                 <View style={styles.divider} />
-                <StatPill 
-                  label="TEMP" 
-                  value={`${tank.temp}°C`} 
-                />
+                <StatPill label="TEMP" value={`${tank.temp}°C`} />
                 <View style={styles.divider} />
-                <StatPill 
-                  label="CLARITY" 
-                  value={`${tank.clarity}%`} 
-                />
+                <StatPill label="TURBIDITY" value={`${tank.clarity}%`} />
               </View>
             </Card>
           </TouchableOpacity>
