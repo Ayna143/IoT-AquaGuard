@@ -1,4 +1,3 @@
-// app/(tabs)/activity.tsx
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -35,7 +34,6 @@ export default function ActivityTab() {
     return () => unsubLogs();
   }, []);
 
-  // Filter Logic
   const filteredLogs = liveLogs.filter(log => {
     if (activeFilter === 'All') return true;
     const evt = (log.event || '').toLowerCase();

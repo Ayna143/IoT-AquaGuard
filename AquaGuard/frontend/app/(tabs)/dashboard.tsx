@@ -1,4 +1,3 @@
-// app/(tabs)/dashboard.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -20,7 +19,6 @@ export default function DashboardTab() {
   
   const [limits, setLimits] = useState({ phMin: 6.5, phMax: 7.5, tempMin: 24, tempMax: 28, clarityMin: 80 });
 
-  // Update the local clock every few seconds to check for banners
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(interval);
@@ -51,7 +49,7 @@ export default function DashboardTab() {
           setInfo({ 
             name: data.info.name || "Fish Tank 1", 
             description: data.info.description || "",
-            nextWaterChange: data.info.nextWaterChange || null // Pulls the target time
+            nextWaterChange: data.info.nextWaterChange || null 
           });
         }
       }
@@ -93,15 +91,12 @@ export default function DashboardTab() {
   }, [raw, limits, info.name]);
 
  const confirmAction = (event: string) => {
-    // 1. Instantly clear the banner from the screen so it feels fast
     if (event === "Water Changed") {
       setInfo(prev => ({ ...prev, nextWaterChange: null }));
       
-      // 2. Explicitly and permanently delete the timer from Firebase
       remove(ref(database, 'aquarium/info/nextWaterChange'));
     }
 
-    // 3. Log the activity
     const newLogRef = push(ref(database, 'activity_logs/'));
     set(newLogRef, { 
       id: Date.now().toString(), 
@@ -177,8 +172,6 @@ export default function DashboardTab() {
   );
 }
 
-// ─── MODALS ───────────────────────────────────────────────────────────────────
-
 function EditInfoModal({ visible, onClose, currentName, currentDesc }: any) {
   const [name, setName] = React.useState(currentName);
   const [desc, setDesc] = React.useState(currentDesc);
@@ -244,16 +237,13 @@ function ReminderModal({ visible, onClose, tankName }: any) {
       targetTimeMs = targetDate.getTime();
     }
 
-    // Push Notification
     await Notifications.scheduleNotificationAsync({ 
       content: { title: "🔔 AquaGuard", body: "Reminding you to Change Aquarium Water" }, 
       trigger 
     });
     
-    // Save target time to Firebase so the banner shows up when the time arrives
     await update(ref(database, 'aquarium/info'), { nextWaterChange: targetTimeMs });
 
-    // Activity Log
     const newLogRef = push(ref(database, 'activity_logs/'));
     set(newLogRef, { tank: tankName, event: logText, time: new Date().toLocaleString(), status: "GOOD" });
     onClose();
@@ -290,7 +280,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   scroll: { padding: 16, gap: 10 },
   
-  // New Banner Styles
   bannerCard: { backgroundColor: '#FEF3C7', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: '#F59E0B', alignItems: 'center', marginBottom: 4 },
   bannerText: { color: '#B45309', fontWeight: '800', fontSize: 14 },
   

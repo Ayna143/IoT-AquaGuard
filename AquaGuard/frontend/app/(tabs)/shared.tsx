@@ -38,7 +38,6 @@ export const T = {
   radiusSm:    8,
 };
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
 export const TANKS = [
   { id: '1', name: 'Fish Tank 1', type: '20L · Freshwater', sensor: '#001', ph: 7.1, temp: 20, clarity: 90, status: 'GOOD' },
   
@@ -59,7 +58,6 @@ export const REMINDERS = [
   { id: '3', tank: 'FISH TANK 3', schedule: '3:00PM, 01/04/26' },
 ];
 
-// ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 export function StatusBadge({ status, small }: { status: string; small?: boolean }) {
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     GOOD:     { bg: T.goodBg,   fg: T.good,   label: 'Good' },
@@ -154,7 +152,6 @@ export function ScreenHeader({
   );
 }
 
-// ─── SHARED STYLES ────────────────────────────────────────────────────────────
 export const sharedStyles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,

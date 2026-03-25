@@ -2,8 +2,6 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; 
-
-// REMOVED duplicate import; using one that usually works for local components
 import { HapticTab } from '../../components/haptic-tab'; 
 
 const BLUE = '#1A6BCC';

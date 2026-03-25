@@ -1,4 +1,3 @@
-// app/(tabs)/settings.tsx
 import React, { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { ref, onValue, update, push, set } from 'firebase/database';
@@ -17,7 +16,6 @@ function SensorSettings({ onBack, tankName }: { onBack: () => void, tankName: st
   const handleSave = () => {
     update(ref(database, 'settings/thresholds'), t);
 
-    // Log the sensor update for the Activity Filter!
     const newLogRef = push(ref(database, 'activity_logs/'));
     set(newLogRef, {
       id: Date.now().toString(),
