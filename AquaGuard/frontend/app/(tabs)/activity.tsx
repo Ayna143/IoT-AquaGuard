@@ -1,38 +1,42 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { ref, onValue } from 'firebase/database';
-import { database } from '../../firebaseConfig'; 
+import { auth, database } from '../../firebaseConfig'; 
 import { Card, ScreenHeader, StatusBadge, T } from './shared';
 
 const FILTERS = ['All', 'Water', 'Feeding', 'Reminders', 'Sensors'];
 
 export default function ActivityTab() {
   const [liveLogs, setLiveLogs] = useState<any[]>([]);
-  const [tankName, setTankName] = useState('Fish Tank 1');
   const [activeFilter, setActiveFilter] = useState('All');
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const user = auth.currentUser;
 
   useEffect(() => {
-    onValue(ref(database, 'aquarium/info/name'), (snap) => {
-      if (snap.exists()) setTankName(snap.val());
-    });
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    const unsubLogs = onValue(ref(database, 'activity_logs/'), (snapshot) => {
+    // UPDATED: Points to the correct single-tank log path
+    const logsRef = ref(database, `users/${user.uid}/tanks/mainTank/logs`);
+    const unsubLogs = onValue(logsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const logsArray = Object.keys(data).map(key => ({
           ...data[key],
           firebaseKey: key 
-        })).reverse();
+        })).reverse(); // Most recent first
         setLiveLogs(logsArray);
       } else {
         setLiveLogs([]); 
       }
+      setLoading(false);
     });
 
     return () => unsubLogs();
-  }, []);
+  }, [user]);
 
   const filteredLogs = liveLogs.filter(log => {
     if (activeFilter === 'All') return true;
@@ -46,27 +50,15 @@ export default function ActivityTab() {
     return false;
   });
 
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={T.blue} /></View>;
+
   return (
     <View style={styles.root}>
-      <ScreenHeader title={`${tankName} Activity`} subtitle="Live Cloud Sync" />
+      <ScreenHeader title="Activity Logs" subtitle="Live Sync" />
       
-      {/* Filter Bar */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {FILTERS.map(f => (
-            <TouchableOpacity 
-              key={f} 
-              style={[styles.filterChip, activeFilter === f && styles.filterChipActive]}
-              onPress={() => setActiveFilter(f)}>
-              <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
       {filteredLogs.length === 0 ? (
-        <View style={{ padding: 20, alignItems: 'center' }}>
-          <Text style={{ color: T.textSec, marginTop: 40 }}>No logs match this filter.</Text>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No history found for this tank.</Text>
         </View>
       ) : (
         <FlatList
@@ -74,19 +66,16 @@ export default function ActivityTab() {
           keyExtractor={item => item.firebaseKey}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => router.push('/dashboard')} activeOpacity={0.7}>
-              <Card style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <View style={styles.iconDot} />
-                  <View>
-                    <Text style={styles.eventName}>{item.event}</Text>
-                    <Text style={styles.tankName}>{item.tank}</Text>
-                    <Text style={styles.time}>{item.time}</Text>
-                  </View>
+            <Card style={styles.row}>
+              <View style={styles.rowLeft}>
+                <View style={[styles.iconDot, { backgroundColor: item.status === 'CRITICAL' ? '#ef4444' : T.blue }]} />
+                <View>
+                  <Text style={styles.eventName}>{item.event}</Text>
+                  <Text style={styles.time}>{item.time}</Text>
                 </View>
-                <StatusBadge status={item.status} small />
-              </Card>
-            </TouchableOpacity>
+              </View>
+              <StatusBadge status={item.status} small />
+            </Card>
           )}
         />
       )}
@@ -96,17 +85,13 @@ export default function ActivityTab() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
-  filterContainer: { backgroundColor: T.white, paddingVertical: 10, borderBottomWidth: 1, borderColor: T.border },
-  filterScroll: { paddingHorizontal: 16, gap: 8 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: T.inputBg, borderWidth: 1, borderColor: T.border },
-  filterChipActive: { backgroundColor: T.blue, borderColor: T.blueDark },
-  filterText: { color: T.textSec, fontSize: 13, fontWeight: '600' },
-  filterTextActive: { color: T.white },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T.blue, marginTop: 2 },
+  iconDot: { width: 8, height: 8, borderRadius: 4 },
   eventName: { color: T.textPri, fontWeight: '600', fontSize: 14 },
-  tankName: { color: T.textSec, fontSize: 12, marginTop: 1 },
   time: { color: T.textMuted, fontSize: 11, marginTop: 1 },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
+  emptyText: { color: T.textSec, textAlign: 'center' }
 });

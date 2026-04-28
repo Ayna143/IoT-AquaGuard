@@ -60,14 +60,20 @@ export default function TabLayout() {
       />
       
       <Tabs.Screen
-        name="settings"
+        name="profile"
         options={{
-          title: 'Settings',
+          title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons size={24} name={focused ? "settings" : "settings-outline"} color={color} />
-          ),
-        }}
-      />
+            <Ionicons 
+              // Use 'person-circle' for a modern, professional look
+              // Use '-outline' version when not active for better UI depth
+              name={focused ? 'person-circle' : 'person-circle-outline'} 
+              size={26} 
+              color={color} 
+            />
+            ),
+          }}
+        />
     </Tabs>
   );
 }
