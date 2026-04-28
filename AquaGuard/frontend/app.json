@@ -13,7 +13,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "package": "com.jayna.aquaguard"
     },
@@ -24,6 +24,11 @@
     "plugins": [
       "expo-web-browser",
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8ba3f09f-722c-4218-a4db-0c6b6e75b79d"
+      }
+    }
   }
 }
