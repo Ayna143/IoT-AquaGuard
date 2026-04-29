@@ -1,4 +1,3 @@
-// shared.ts — theme, mock data, shared components
 import React, { useState } from 'react';
 import {
   Platform,

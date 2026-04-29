@@ -19,14 +19,12 @@ export default function ProfileScreen() {
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [tankModalOpen, setTankModalOpen] = useState(false);
 
-  // Default fallback limits
   const [limits, setLimits] = useState<ThresholdSettings>({ 
     phMin: '6.5', phMax: '7.5', tempMin: '24.0', tempMax: '28.0', clarityMin: '80' 
   });
 
   const user = auth.currentUser;
   
-  // CRITICAL FIX: Since login is removed, we provide a default uid so Firebase saves still work!
   const uid = user?.uid || 'guest_user';
 
   const getInitial = () => {
@@ -114,7 +112,6 @@ export default function ProfileScreen() {
             <MaterialIcons name="edit" size={20} color={T.textSec} />
           </TouchableOpacity>
         </View>
-        {/* Email display completely removed */}
       </View>
 
       <Text style={styles.sectionTitle}>My Aquarium</Text>
@@ -158,10 +155,6 @@ export default function ProfileScreen() {
     </ScrollView>
   );
 }
-
-// ==========================================
-// SUB-COMPONENTS & MODALS
-// ==========================================
 
 function ProfileEditModal({ visible, onClose, currentName, uid }: any) {
   const [name, setName] = React.useState(currentName);
@@ -274,10 +267,6 @@ function TankDetailsModal({ visible, onClose, tank, uid }: any) {
     </Modal>
   );
 }
-
-// ==========================================
-// STYLES
-// ==========================================
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc', padding: 24 },

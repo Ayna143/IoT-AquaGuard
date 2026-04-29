@@ -7,17 +7,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { auth, database } from '../../firebaseConfig'; 
 import { Card, GhostButton, PrimaryButton, ScreenHeader, StatusBadge, T, FormInput } from './shared';
 
-// =====================================================================
-// GLOBAL NOTIFICATION HANDLER
-// Updated to include shouldShowBanner and shouldShowList for modern Expo SDKs
-// =====================================================================
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowBanner: true, // Fix for ts(2322)
-    shouldShowList: true,   // Fix for ts(2322)
+    shouldShowBanner: true,
+    shouldShowList: true,  
   }),
 });
 
@@ -119,7 +115,6 @@ export default function DashboardTab() {
     return () => clearInterval(interval);
   }, []);
 
-  // Alert & Push Notification Logic
   useEffect(() => {
     let currentStatus = 'GOOD';
     let alertMessage = '';
@@ -150,14 +145,12 @@ export default function DashboardTab() {
     if ((currentStatus === 'CRITICAL' || currentStatus === 'WARNING') && alertMessage !== '') {
       const currentMs = Date.now();
       
-      // Cooldown of 5 minutes
       if (currentMs - lastAlarmTime.current > 300000) { 
         lastAlarmTime.current = currentMs; 
         
         const newLogRef = push(ref(database, `users/${uid}/tanks/mainTank/logs`));
         set(newLogRef, { id: currentMs.toString(), event: alertMessage, time: new Date().toLocaleString(), status: currentStatus });
 
-        // Trigger Instant Push Notification
         Notifications.scheduleNotificationAsync({
           content: { 
             title: currentStatus === 'CRITICAL' ? "🚨 AquaGuard Critical Alert" : "⚠️ AquaGuard Warning", 
@@ -217,9 +210,6 @@ export default function DashboardTab() {
           <TouchableOpacity style={styles.actionBtn} onPress={() => setFeedingOpen(true)}>
             <Text style={styles.actionBtnText}>🐟 Feed</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: T.blueLight }]} onPress={() => setReminderOpen(true)}>
-            <Text style={[styles.actionBtnText, { color: T.blue }]}>🔔 Remind</Text>
-          </TouchableOpacity>
         </View>
 
         <Card style={styles.metricCard}>
@@ -243,15 +233,10 @@ export default function DashboardTab() {
 
       <ConfirmModal visible={waterChangeOpen} title="Water Change" onConfirm={() => confirmAction("Water Changed")} onClose={() => setWaterChangeOpen(false)} />
       <ConfirmModal visible={feedingOpen} title="Feeding" onConfirm={() => confirmAction("Feeding Completed")} onClose={() => setFeedingOpen(false)} />
-      
-      <ReminderModal visible={reminderOpen} onClose={() => setReminderOpen(false)} userUid={uid} />
     </View>
   );
 }
 
-// ==========================
-// SUB-COMPONENTS
-// ==========================
 
 function ConfirmModal({ visible, title, onConfirm, onClose }: any) {
   return (
@@ -269,9 +254,6 @@ function ConfirmModal({ visible, title, onConfirm, onClose }: any) {
   );
 }
 
-// ----------------------------------------------------
-// Specific Date & Time Reminder Modal (No Restrictions)
-// ----------------------------------------------------
 function ReminderModal({ visible, onClose, userUid }: any) {
   const [isEnabled, setIsEnabled] = React.useState(false);
   const [type, setType] = React.useState<'recurring' | 'specific'>('recurring');
@@ -355,85 +337,6 @@ function ReminderModal({ visible, onClose, userUid }: any) {
       setDate(selectedDate);
     }
   };
-
-  return (
-    <Modal transparent visible={visible} animationType="fade">
-      <View style={modal.overlay}>
-        <View style={modal.box}>
-          <Text style={modal.title}>Set Reminder</Text>
-
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Enable Reminder</Text>
-            <Switch
-              value={isEnabled}
-              onValueChange={setIsEnabled}
-              trackColor={{ false: '#cbd5e1', true: T.blue }}
-            />
-          </View>
-
-          {isEnabled && (
-            <View style={styles.reminderConfig}>
-              
-              <View style={styles.tabRow}>
-                <TouchableOpacity
-                  style={[styles.tabBtn, type === 'recurring' && styles.tabActive]}
-                  onPress={() => setType('recurring')}
-                >
-                  <Text style={[styles.tabText, type === 'recurring' && styles.tabTextActive]}>Recurring</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tabBtn, type === 'specific' && styles.tabActive]}
-                  onPress={() => setType('specific')}
-                >
-                  <Text style={[styles.tabText, type === 'specific' && styles.tabTextActive]}>Specific Time</Text>
-                </TouchableOpacity>
-              </View>
-
-              {type === 'recurring' ? (
-                <FormInput
-                  label="Every (Days)"
-                  value={days}
-                  onChangeText={setDays}
-                  keyboardType="numeric"
-                />
-              ) : (
-                <View style={styles.datePickerContainer}>
-                  <Text style={styles.dateLabel}>Select Date & Time</Text>
-                  
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TouchableOpacity style={styles.pickerBtn} onPress={() => showMode('date')}>
-                      <MaterialIcons name="calendar-today" size={18} color={T.blue} />
-                      <Text style={styles.pickerBtnText}>{date.toLocaleDateString()}</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity style={styles.pickerBtn} onPress={() => showMode('time')}>
-                      <MaterialIcons name="access-time" size={18} color={T.blue} />
-                      <Text style={styles.pickerBtnText}>{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {showPicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode={pickerMode}
-                      is24Hour={false} // Forces AM/PM selector
-                      display={pickerMode === 'date' ? 'default' : 'spinner'} 
-                      onChange={onChangeDate}
-                    />
-                  )}
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={[modal.actions, { marginTop: 20 }]}>
-            <GhostButton label="Cancel" onPress={onClose} style={{ flex: 1 }} />
-            <PrimaryButton label="Save" onPress={handleSave} style={{ flex: 1 }} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
 }
 
 const styles = StyleSheet.create({
