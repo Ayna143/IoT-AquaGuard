@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Switch, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { ref, onValue, push, set, update, remove } from 'firebase/database';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { ref, onValue, push, set, update } from 'firebase/database';
 import { MaterialIcons } from '@expo/vector-icons'; 
 import { auth, database } from '../../firebaseConfig'; 
 import { Card, GhostButton, PrimaryButton, ScreenHeader, StatusBadge, T, FormInput } from './shared';
 
+// =====================================================================
+// GLOBAL NOTIFICATION HANDLER
+// Updated to include shouldShowBanner and shouldShowList for modern Expo SDKs
+// =====================================================================
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true, // Fix for ts(2322)
+    shouldShowList: true,   // Fix for ts(2322)
+  }),
+});
+
 export default function DashboardTab() {
   const [isLoading, setIsLoading] = useState(true);
-  const [editOpen, setEditOpen] = useState(false);
   const [waterChangeOpen, setWaterChangeOpen] = useState(false);
   const [feedingOpen, setFeedingOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
@@ -17,9 +31,8 @@ export default function DashboardTab() {
   const [now, setNow] = useState(Date.now());
   const [raw, setRaw] = useState({ ph: 7.0, temp: 25.0, tds: 0 });
   
-  const [info, setInfo] = useState<{ name: string; description: string; nextWaterChange: number | null }>({ 
+  const [info, setInfo] = useState<{ name: string; nextWaterChange: number | null }>({ 
     name: 'Loading...', 
-    description: '', 
     nextWaterChange: null 
   });
   
@@ -27,6 +40,20 @@ export default function DashboardTab() {
   const [limits, setLimits] = useState({ phMin: 6.5, phMax: 7.5, tempMin: 24, tempMax: 28, clarityMin: 80 });
 
   const user = auth.currentUser;
+  
+  // Persistent guest mode UID
+  const uid = user?.uid || 'guest_user';
+
+  // Ask for notification permissions right when dashboard loads
+  useEffect(() => {
+    const requestPermissions = async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    };
+    requestPermissions();
+  }, []);
 
   const getStatusConfig = () => {
     const currentClarity = Math.round(Math.max(0, 100 - (raw.tds / 10)));
@@ -51,15 +78,12 @@ export default function DashboardTab() {
   const statusConfig = getStatusConfig();
 
   useEffect(() => {
-    if (!user) return;
-    
-    const tankRef = ref(database, `users/${user.uid}/tanks/mainTank`);
+    const tankRef = ref(database, `users/${uid}/tanks/mainTank`);
     const unsub = onValue(tankRef, (snap) => {
       if (snap.exists()) {
         const tank = snap.val();
         setInfo({
-          name: tank.name || "My Tank",
-          description: tank.description || "",
+          name: tank.name || "Main Tank",
           nextWaterChange: tank.nextWaterChange || null
         });
         
@@ -77,7 +101,7 @@ export default function DashboardTab() {
     });
     
     return () => unsub();
-  }, [user]);
+  }, [uid]);
 
   useEffect(() => {
     const deviceRef = ref(database, `devices/ESP32_AQUAGUARD_01`); 
@@ -95,11 +119,13 @@ export default function DashboardTab() {
     return () => clearInterval(interval);
   }, []);
 
+  // Alert & Push Notification Logic
   useEffect(() => {
-    if (!user) return;
     let currentStatus = 'GOOD';
     let alertMessage = '';
+    
     const clarity = Math.round(Math.max(0, 100 - (raw.tds / 10)));
+    const phBuffer = (limits.phMax - limits.phMin) * 0.1;
 
     if (raw.ph > limits.phMax || raw.ph < limits.phMin) {
       currentStatus = 'CRITICAL';
@@ -110,23 +136,42 @@ export default function DashboardTab() {
     } else if (clarity < limits.clarityMin) {
       currentStatus = 'CRITICAL';
       alertMessage = `Critical Turbidity: ${clarity}%`;
+    } else if (
+      raw.ph < (limits.phMin + phBuffer) || raw.ph > (limits.phMax - phBuffer) ||
+      raw.temp < (limits.tempMin + 1) || raw.temp > (limits.tempMax - 1) ||
+      clarity < (limits.clarityMin + 5)
+    ) {
+      currentStatus = 'WARNING';
+      alertMessage = `Water quality is approaching unsafe limits.`;
     }
 
     setStatus(currentStatus);
 
-    if (currentStatus === 'CRITICAL' && alertMessage !== '') {
+    if ((currentStatus === 'CRITICAL' || currentStatus === 'WARNING') && alertMessage !== '') {
       const currentMs = Date.now();
+      
+      // Cooldown of 5 minutes
       if (currentMs - lastAlarmTime.current > 300000) { 
         lastAlarmTime.current = currentMs; 
-        const newLogRef = push(ref(database, `users/${user.uid}/tanks/mainTank/logs`));
-        set(newLogRef, { id: currentMs.toString(), event: alertMessage, time: new Date().toLocaleString(), status: "CRITICAL" });
+        
+        const newLogRef = push(ref(database, `users/${uid}/tanks/mainTank/logs`));
+        set(newLogRef, { id: currentMs.toString(), event: alertMessage, time: new Date().toLocaleString(), status: currentStatus });
+
+        // Trigger Instant Push Notification
+        Notifications.scheduleNotificationAsync({
+          content: { 
+            title: currentStatus === 'CRITICAL' ? "🚨 AquaGuard Critical Alert" : "⚠️ AquaGuard Warning", 
+            body: alertMessage,
+            sound: true
+          },
+          trigger: null, 
+        });
       }
     }
-  }, [raw, limits, user]);
+  }, [raw, limits, uid]);
 
   const confirmAction = (event: string) => {
-    if (!user) return;
-    const newLogRef = push(ref(database, `users/${user.uid}/tanks/mainTank/logs`));
+    const newLogRef = push(ref(database, `users/${uid}/tanks/mainTank/logs`));
     set(newLogRef, { 
       id: Date.now().toString(), 
       event: event, 
@@ -165,15 +210,6 @@ export default function DashboardTab() {
           </View>
         )}
 
-        <Card style={styles.infoCard}>
-          <View style={styles.infoHeader}>
-            <View style={{ flex: 1 }}>
-                <Text style={styles.infoDesc}>{info.description || "No description set."}</Text>
-            </View>
-            <TouchableOpacity onPress={() => setEditOpen(true)}><Text style={styles.editLink}>Edit Info</Text></TouchableOpacity>
-          </View>
-        </Card>
-
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionBtn} onPress={() => setWaterChangeOpen(true)}>
             <Text style={styles.actionBtnText}>💧 Water</Text>
@@ -205,17 +241,10 @@ export default function DashboardTab() {
         </Card>
       </ScrollView>
 
-      <EditInfoModal 
-        visible={editOpen} 
-        onClose={() => setEditOpen(false)} 
-        currentName={info.name} 
-        currentDesc={info.description} 
-        userUid={user?.uid} 
-      />
-      
       <ConfirmModal visible={waterChangeOpen} title="Water Change" onConfirm={() => confirmAction("Water Changed")} onClose={() => setWaterChangeOpen(false)} />
       <ConfirmModal visible={feedingOpen} title="Feeding" onConfirm={() => confirmAction("Feeding Completed")} onClose={() => setFeedingOpen(false)} />
-      <ReminderModal visible={reminderOpen} onClose={() => setReminderOpen(false)} userUid={user?.uid} />
+      
+      <ReminderModal visible={reminderOpen} onClose={() => setReminderOpen(false)} userUid={uid} />
     </View>
   );
 }
@@ -223,34 +252,6 @@ export default function DashboardTab() {
 // ==========================
 // SUB-COMPONENTS
 // ==========================
-
-function EditInfoModal({ visible, onClose, currentName, currentDesc, userUid }: any) {
-  const [name, setName] = React.useState(currentName);
-  const [desc, setDesc] = React.useState(currentDesc);
-
-  React.useEffect(() => { if (visible) { setName(currentName); setDesc(currentDesc); } }, [visible, currentName, currentDesc]);
-
-  const handleSave = () => {
-    update(ref(database, `users/${userUid}/tanks/mainTank`), { name, description: desc }); 
-    onClose();
-  };
-
-  return (
-    <Modal transparent visible={visible} animationType="fade">
-      <View style={modal.overlay}>
-        <View style={modal.box}>
-          <Text style={modal.title}>Edit Tank Info</Text>
-          <FormInput label="Tank Name" value={name} onChangeText={setName} />
-          <FormInput label="Description" value={desc} onChangeText={setDesc} />
-          <View style={modal.actions}>
-            <GhostButton label="Cancel" onPress={onClose} style={{ flex: 1 }} />
-            <PrimaryButton label="Save" onPress={handleSave} style={{ flex: 1 }} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 function ConfirmModal({ visible, title, onConfirm, onClose }: any) {
   return (
@@ -269,11 +270,16 @@ function ConfirmModal({ visible, title, onConfirm, onClose }: any) {
 }
 
 // ----------------------------------------------------
-// Reminder Modal (Simplified to Days Only)
+// Specific Date & Time Reminder Modal (No Restrictions)
 // ----------------------------------------------------
 function ReminderModal({ visible, onClose, userUid }: any) {
   const [isEnabled, setIsEnabled] = React.useState(false);
+  const [type, setType] = React.useState<'recurring' | 'specific'>('recurring');
   const [days, setDays] = React.useState('7');
+
+  const [date, setDate] = React.useState(new Date());
+  const [showPicker, setShowPicker] = React.useState(false);
+  const [pickerMode, setPickerMode] = React.useState<'date' | 'time'>('date');
 
   React.useEffect(() => {
     if (visible && userUid) {
@@ -282,7 +288,11 @@ function ReminderModal({ visible, onClose, userUid }: any) {
         if (snap.exists()) {
           const data = snap.val();
           setIsEnabled(data.enabled || false);
+          setType(data.type || 'recurring');
           setDays(data.days || '7');
+          if (data.specificTime) {
+            setDate(new Date(data.specificTime));
+          }
         }
       }, { onlyOnce: true });
     }
@@ -304,27 +314,46 @@ function ReminderModal({ visible, onClose, userUid }: any) {
     await Notifications.cancelAllScheduledNotificationsAsync();
 
     if (isEnabled) {
-      const daysNum = parseInt(days);
-      if (isNaN(daysNum) || daysNum <= 0) {
-        Alert.alert("Invalid Input", "Please enter a valid number of days.");
-        return;
-      }
+      if (type === 'specific') {
+        await Notifications.scheduleNotificationAsync({
+          content: { title: "AquaGuard", body: "Time to check your aquarium!" },
+          trigger: date as any, 
+        });
+      } else {
+        const daysNum = parseInt(days);
+        if (isNaN(daysNum) || daysNum <= 0) {
+          Alert.alert("Invalid Input", "Please enter a valid number of days.");
+          return;
+        }
 
-      // Schedule the recurring notification
-      await Notifications.scheduleNotificationAsync({
-        content: { title: "AquaGuard", body: "Time for your routine aquarium maintenance!" },
-        trigger: { seconds: daysNum * 86400, repeats: true } as any,
-      });
+        await Notifications.scheduleNotificationAsync({
+          content: { title: "AquaGuard", body: "Time for your routine aquarium maintenance!" },
+          trigger: { seconds: daysNum * 86400, repeats: true } as any,
+        });
+      }
     }
 
-    // Save to Firebase
     update(ref(database, `users/${userUid}/tanks/mainTank/reminder`), {
       enabled: isEnabled,
+      type,
       days,
+      specificTime: date.toISOString(),
     });
 
-    Alert.alert("Saved", isEnabled ? `Reminder set for every ${days} day(s).` : "Reminders disabled.");
+    Alert.alert("Saved", isEnabled ? "Reminder scheduled successfully." : "Reminders disabled.");
     onClose();
+  };
+
+  const showMode = (currentMode: 'date' | 'time') => {
+    setShowPicker(true);
+    setPickerMode(currentMode);
+  };
+
+  const onChangeDate = (event: any, selectedDate?: Date) => {
+    setShowPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
   };
 
   return (
@@ -334,7 +363,7 @@ function ReminderModal({ visible, onClose, userUid }: any) {
           <Text style={modal.title}>Set Reminder</Text>
 
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Enable Reminders</Text>
+            <Text style={styles.switchLabel}>Enable Reminder</Text>
             <Switch
               value={isEnabled}
               onValueChange={setIsEnabled}
@@ -344,12 +373,56 @@ function ReminderModal({ visible, onClose, userUid }: any) {
 
           {isEnabled && (
             <View style={styles.reminderConfig}>
-              <FormInput
-                label="Every (Days)"
-                value={days}
-                onChangeText={setDays}
-                keyboardType="numeric"
-              />
+              
+              <View style={styles.tabRow}>
+                <TouchableOpacity
+                  style={[styles.tabBtn, type === 'recurring' && styles.tabActive]}
+                  onPress={() => setType('recurring')}
+                >
+                  <Text style={[styles.tabText, type === 'recurring' && styles.tabTextActive]}>Recurring</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tabBtn, type === 'specific' && styles.tabActive]}
+                  onPress={() => setType('specific')}
+                >
+                  <Text style={[styles.tabText, type === 'specific' && styles.tabTextActive]}>Specific Time</Text>
+                </TouchableOpacity>
+              </View>
+
+              {type === 'recurring' ? (
+                <FormInput
+                  label="Every (Days)"
+                  value={days}
+                  onChangeText={setDays}
+                  keyboardType="numeric"
+                />
+              ) : (
+                <View style={styles.datePickerContainer}>
+                  <Text style={styles.dateLabel}>Select Date & Time</Text>
+                  
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity style={styles.pickerBtn} onPress={() => showMode('date')}>
+                      <MaterialIcons name="calendar-today" size={18} color={T.blue} />
+                      <Text style={styles.pickerBtnText}>{date.toLocaleDateString()}</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity style={styles.pickerBtn} onPress={() => showMode('time')}>
+                      <MaterialIcons name="access-time" size={18} color={T.blue} />
+                      <Text style={styles.pickerBtnText}>{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {showPicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode={pickerMode}
+                      is24Hour={false} // Forces AM/PM selector
+                      display={pickerMode === 'date' ? 'default' : 'spinner'} 
+                      onChange={onChangeDate}
+                    />
+                  )}
+                </View>
+              )}
             </View>
           )}
 
@@ -378,13 +451,11 @@ const styles = StyleSheet.create({
   qualityBannerText: { color: '#fff', fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
   bannerCard: { backgroundColor: '#FEF3C7', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#F59E0B', alignItems: 'center' },
   bannerText: { color: '#B45309', fontWeight: '800' },
-  infoCard: { padding: 16 },
-  infoHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  infoDesc: { color: T.textSec, fontSize: 13 },
-  editLink: { color: T.blue, fontWeight: '700', fontSize: 13 },
-  actionRow: { flexDirection: 'row', gap: 8 },
+  
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: T.blue },
   actionBtnText: { fontWeight: '700', fontSize: 13, color: T.blue },
+  
   metricCard: { padding: 16, borderRadius: 12, backgroundColor: T.white, borderWidth: 1, borderColor: T.border },
   metricLabel: { color: T.textSec, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   metricValue: { color: T.blue, fontSize: 40, fontWeight: '800' },
@@ -394,7 +465,29 @@ const styles = StyleSheet.create({
   // Reminder Styles
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderColor: '#e2e8f0' },
   switchLabel: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
-  reminderConfig: { gap: 16 },
+  reminderConfig: { gap: 8 },
+  tabRow: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 8, padding: 4, marginBottom: 8 },
+  tabBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
+  tabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  tabText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
+  tabTextActive: { color: '#10b981' }, 
+  datePickerContainer: { gap: 8 },
+  dateLabel: { fontSize: 13, fontWeight: '700', color: '#0f172a', marginBottom: 4 },
+  
+  // Explicit Picker Buttons
+  pickerBtn: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 12, 
+    backgroundColor: '#f8fafc', 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    borderColor: '#cbd5e1', 
+    gap: 6 
+  },
+  pickerBtnText: { fontSize: 14, fontWeight: '600', color: '#0f172a' }
 });
 
 const modal = StyleSheet.create({

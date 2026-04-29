@@ -65,8 +65,6 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
-              // Use 'person-circle' for a modern, professional look
-              // Use '-outline' version when not active for better UI depth
               name={focused ? 'person-circle' : 'person-circle-outline'} 
               size={26} 
               color={color} 

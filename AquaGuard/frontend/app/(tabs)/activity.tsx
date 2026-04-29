@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { FlatList, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { FlatList, StyleSheet, Text, View, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
 import { ref, onValue } from 'firebase/database';
 import { auth, database } from '../../firebaseConfig'; 
 import { Card, ScreenHeader, StatusBadge, T } from './shared';
@@ -11,16 +11,12 @@ export default function ActivityTab() {
   const [liveLogs, setLiveLogs] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
   const [loading, setLoading] = useState(true);
+
   const user = auth.currentUser;
+  const uid = user?.uid || 'guest_user';
 
   useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    // UPDATED: Points to the correct single-tank log path
-    const logsRef = ref(database, `users/${user.uid}/tanks/mainTank/logs`);
+    const logsRef = ref(database, `users/${uid}/tanks/mainTank/logs`);
     const unsubLogs = onValue(logsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -36,7 +32,7 @@ export default function ActivityTab() {
     });
 
     return () => unsubLogs();
-  }, [user]);
+  }, [uid]);
 
   const filteredLogs = liveLogs.filter(log => {
     if (activeFilter === 'All') return true;
@@ -56,9 +52,29 @@ export default function ActivityTab() {
     <View style={styles.root}>
       <ScreenHeader title="Activity Logs" subtitle="Live Sync" />
       
+      {/* NEW: Filter Chips Bar */}
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {FILTERS.map((filter) => {
+            const isActive = activeFilter === filter;
+            return (
+              <TouchableOpacity 
+                key={filter} 
+                onPress={() => setActiveFilter(filter)}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                  {filter}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {filteredLogs.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No history found for this tank.</Text>
+          <Text style={styles.emptyText}>No history found for this category.</Text>
         </View>
       ) : (
         <FlatList
@@ -86,6 +102,14 @@ export default function ActivityTab() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  filterContainer: { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#e2e8f0', paddingVertical: 12 },
+  filterScroll: { paddingHorizontal: 16, gap: 8 },
+  filterChip: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#cbd5e1' },
+  filterChipActive: { backgroundColor: T.blueLight, borderColor: T.blue },
+  filterText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  filterTextActive: { color: T.blue },
+
   list: { padding: 16, gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
