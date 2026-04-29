@@ -5,7 +5,7 @@ import { ref, onValue } from 'firebase/database';
 import { auth, database } from '../../firebaseConfig'; 
 import { Card, ScreenHeader, StatusBadge, T } from './shared';
 
-const FILTERS = ['All', 'Water', 'Feeding', 'Reminders', 'Sensors'];
+const FILTERS = ['All', 'Water', 'Feeding', 'Sensors'];
 
 export default function ActivityTab() {
   const [liveLogs, setLiveLogs] = useState<any[]>([]);
@@ -40,7 +40,6 @@ export default function ActivityTab() {
     
     if (activeFilter === 'Water' && evt.includes('water')) return true;
     if (activeFilter === 'Feeding' && evt.includes('feed')) return true;
-    if (activeFilter === 'Reminders' && evt.includes('reminder')) return true;
     if (activeFilter === 'Sensors' && evt.includes('sensor')) return true;
     
     return false;
